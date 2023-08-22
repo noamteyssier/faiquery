@@ -117,10 +117,55 @@ mod testing {
     }
 
     #[test]
-    fn interval_overextend() -> Result<()> {
+    fn interval_overextend_left() -> Result<()> {
         let index = FastaIndex::from_filepath(TEST_FASTA_INDEX)?;
         let mut faidx = IndexedFasta::new(index, TEST_FASTA)?;
         let seq = faidx.query("chr1", 130, 150);
+        assert!(seq.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn interval_overextend_right() -> Result<()> {
+        let index = FastaIndex::from_filepath(TEST_FASTA_INDEX)?;
+        let mut faidx = IndexedFasta::new(index, TEST_FASTA)?;
+        let seq = faidx.query("chr1", 100, 150);
+        assert!(seq.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn interval_overextend_start_eq() -> Result<()> {
+        let index = FastaIndex::from_filepath(TEST_FASTA_INDEX)?;
+        let mut faidx = IndexedFasta::new(index, TEST_FASTA)?;
+        let seq = faidx.query("chr1", 112, 113);
+        assert!(seq.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn interval_overextend_left_unbounded() -> Result<()> {
+        let index = FastaIndex::from_filepath(TEST_FASTA_INDEX)?;
+        let mut faidx = IndexedFasta::new(index, TEST_FASTA)?;
+        let seq = faidx.query_unbounded("chr1", 130, 150);
+        assert!(seq.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn interval_overextend_right_unbounded() -> Result<()> {
+        let index = FastaIndex::from_filepath(TEST_FASTA_INDEX)?;
+        let mut faidx = IndexedFasta::new(index, TEST_FASTA)?;
+        let seq = faidx.query_unbounded("chr1", 100, 150)?;
+        assert_eq!(seq.len(), 12);
+        Ok(())
+    }
+
+    #[test]
+    fn interval_overextend_right_unbounded_start_eq() -> Result<()> {
+        let index = FastaIndex::from_filepath(TEST_FASTA_INDEX)?;
+        let mut faidx = IndexedFasta::new(index, TEST_FASTA)?;
+        let seq = faidx.query_unbounded("chr1", 112, 150);
         assert!(seq.is_err());
         Ok(())
     }

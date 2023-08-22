@@ -43,12 +43,20 @@ impl IndexedFasta {
     }
 
     /// Validate the start and end positions of a query interval.
-    fn validate_interval(&self, entry: &IndexEntry, start: usize, end: usize) -> Result<()> {
+    fn validate_interval(
+        &self,
+        entry: &IndexEntry,
+        start: usize,
+        end: usize,
+        bounded: bool,
+    ) -> Result<()> {
         if start > end {
             bail!("Start position must be less than end position");
         } else if start == end {
             bail!("Start and end positions must not be equal");
-        } else if end > entry.length {
+        } else if start >= entry.length {
+            bail!("Start position must be less than sequence length");
+        } else if bounded && end > entry.length {
             bail!("End position must be less than sequence length");
         }
         Ok(())
@@ -59,18 +67,92 @@ impl IndexedFasta {
     /// The sequence is returned as a `&[u8]` slice but is not guaranteed to be valid UTF-8.
     /// It also removes all newline characters from the sequence slice.
     ///
+    /// To query intervals that are potentially out of bounds, use `query_unbounded` and
+    /// return a truncated sequence use `query_unbounded`.
+    ///
     /// # Errors
     ///
     /// - Error if the query `name`is not found in the index.
     /// - Error if the `start` position is greater than the `end` position.
     /// - Error if the `start` position is equal to the `end` position.
     /// - Error if the `end` position is greater than the index sequence length.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use faiquery::{FastaIndex, IndexedFasta};
+    ///
+    /// let index = FastaIndex::from_filepath("example_data/example.fa.fai")
+    ///    .expect("Could not read index file");
+    /// let mut faidx = IndexedFasta::new(index, "example_data/example.fa")
+    ///     .expect("Could not read FASTA file");
+    ///
+    /// // Query a region from the middle of chr1
+    /// let seq = faidx.query("chr1", 50, 80).unwrap();
+    /// assert_eq!(seq.len(), 30);
+    ///
+    /// // Overextend the query into chr1 (which is 112 bases long)
+    /// let seq = faidx.query("chr1", 100, 120);
+    /// assert!(seq.is_err());
+    /// ```
     pub fn query(&mut self, name: &str, start: usize, end: usize) -> Result<&[u8]> {
         let entry = match self.index.get(name) {
             Some(entry) => entry,
             None => bail!("No entry found for {}", name),
         };
-        self.validate_interval(entry, start, end)?;
+        self.validate_interval(entry, start, end, true)?;
+        self.buffer.clear();
+        let query_pos = QueryPosition::new(start, end, entry);
+        let seq_slice = &self.map[query_pos.pos..query_pos.pos + query_pos.buffer_size];
+        self.buffer.extend_from_slice(seq_slice);
+        self.buffer.retain(|&c| c != b'\n');
+        Ok(&self.buffer)
+    }
+
+    /// Query the FASTA file by name and position.
+    ///
+    /// The sequence is returned as a `&[u8]` slice but is not guaranteed to be valid UTF-8.
+    /// It also removes all newline characters from the sequence slice.
+    ///
+    /// This method will truncate the sequence if the `end` position is greater than the sequence length
+    /// to avoid an error and only return the sequence up to the sequence length.
+    ///
+    /// # Errors
+    ///
+    /// - Error if the query `name`is not found in the index.
+    /// - Error if the `start` position is greater than the `end` position.
+    /// - Error if the `start` position is equal to the `end` position.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use faiquery::{FastaIndex, IndexedFasta};
+    ///
+    /// let index = FastaIndex::from_filepath("example_data/example.fa.fai")
+    ///    .expect("Could not read index file");
+    /// let mut faidx = IndexedFasta::new(index, "example_data/example.fa")
+    ///     .expect("Could not read FASTA file");
+    ///
+    /// // Overextend the query into chr1 (which is 112 bases long)
+    /// let seq = faidx.query("chr1", 100, 120);
+    /// assert!(seq.is_err());
+    ///
+    /// // Overextend the query into chr1 but truncate the sequence
+    /// // with `query_unbounded`
+    /// let seq = faidx.query_unbounded("chr1", 100, 120).unwrap();
+    /// assert_eq!(seq.len(), 12);
+    /// ```
+    pub fn query_unbounded(&mut self, name: &str, start: usize, end: usize) -> Result<&[u8]> {
+        let entry = match self.index.get(name) {
+            Some(entry) => entry,
+            None => bail!("No entry found for {}", name),
+        };
+        self.validate_interval(entry, start, end, false)?;
+        let end = if end > entry.length {
+            entry.length
+        } else {
+            end
+        };
         self.buffer.clear();
         let query_pos = QueryPosition::new(start, end, entry);
         let seq_slice = &self.map[query_pos.pos..query_pos.pos + query_pos.buffer_size];
