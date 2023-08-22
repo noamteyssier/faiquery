@@ -2,6 +2,12 @@
 name = "faiquery"
 version = "0.1.0"
 edition = "2021"
+repository = "https://github.com/noamteyssier/faiquery"
+documentation = "https://docs.rs/faiquery"
+keywords = ["fasta", "fai", "indexed"]
+categories = ["parser-implementations"]
+license = "MIT"
+description = "Queryable indexed fasta using a mmapped file"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
