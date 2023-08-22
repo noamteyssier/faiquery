@@ -1,5 +1,8 @@
 # faiquery
 
+[![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE.md)
+[![docs.rs](https://img.shields.io/docsrs/faiquery?color=green&label=docs.rs)](https://docs.rs/faiquery/latest/faiquery/)
+
 perform interval queries on an indexed fasta file
 
 ## Description
